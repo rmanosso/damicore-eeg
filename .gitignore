@@ -1,0 +1,23 @@
+# Dados originais (baixar do figshare; ver README)
+dataset/
+
+# Resultados gerados pelo notebook (reproduzíveis)
+resultados/
+damicore-results/
+
+# Materiais de aula e artigos (direitos autorais; ver referências no README)
+materiais-aula/
+materiais-DAMICORE/
+materiais-dataset/
+
+# Python / Jupyter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# Sistema
+desktop.ini
+Thumbs.db
+.DS_Store
