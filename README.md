@@ -7,17 +7,25 @@ no fim, para avaliar os agrupamentos.
 
 Trabalho da disciplina de pós-graduação sobre Algoritmos de Estimação de Distribuição de propósito geral (Prof. Alexandre Delbem, ICMC-USP).
 
-## Pipeline
+## Notebooks
 
-Tudo está em [`scripts/script-alzheimer.ipynb`](scripts/script-alzheimer.ipynb):
+Os dois notebooks seguem o mesmo fluxo e diferem na preparação dos sinais:
 
-1. **Inventário e harmonização dos sinais**: reamostragem para 128 Hz, passa-banda comum de 4,5–40 Hz, janela de 48 s,
-   z-score por canal e quantização em 8 níveis. Sem essa harmonização, os grupos refletiriam o aparelho de registro, não a doença.
-2. **Etapa 1 — DAMICORE por canal**: uma execução para cada um dos 19 canais. Os objetos são os pacientes (um arquivo por paciente).
-   O cluster de cada paciente em cada canal é a discretização do canal. `NUM_CLUSTERS` define k (`None` = automático).
-3. **Tabelas de probabilidade** a partir da tabela discretizada (paciente × canal).
-4. **Etapa 2 — DAMICORE entre pacientes**: a tabela de probabilidade marginal, já transposta (canais × pacientes),
-   é agrupada novamente numa única chamada, `etapa2(k=...)`.
+| Notebook | Sinais | Saídas |
+|---|---|---|
+| [`scripts/damicore-dados-crus.ipynb`](scripts/damicore-dados-crus.ipynb) | valores originais dos arquivos, sem nenhum processamento | `resultados_crus/` |
+| [`scripts/script-alzheimer.ipynb`](scripts/script-alzheimer.ipynb) | harmonizados: 128 Hz, passa-banda de 4,5–40 Hz, z-score e quantização em 8 níveis | `resultados/` |
+
+Fluxo:
+
+1. **Objetos**: uma pasta por canal, com um arquivo por paciente.
+2. **Etapa 1 — DAMICORE por canal**: uma execução para cada um dos 19 canais; os objetos são os pacientes.
+   O cluster de cada paciente em cada canal é a discretização do canal (k automático e k=2).
+3. **Tabela de probabilidade** a partir da tabela discretizada: a tabela marginal, já transposta (canais × pacientes).
+4. **Etapa 2 — DAMICORE entre pacientes** sobre essa tabela, com filograma e composição dos grupos.
+
+O notebook de dados crus também compara três formas de dividir a árvore em dois grupos (k=2 do FastGreedy, raiz do NJ e ponto médio).
+O notebook harmonizado tem, na seção 9, a mesma comparação com os dados crus usada no início do trabalho.
 
 ## Como executar
 
@@ -29,11 +37,12 @@ python -m venv .venv
 pip install -r requirements.txt jupyter
 ```
 
-Baixe os dados (seção abaixo), extraia em `dataset/dataset/` e execute o notebook de cima para baixo.
+Baixe os dados (seção abaixo), extraia em `dataset/dataset/` e execute os notebooks de cima para baixo.
+O de dados crus leva de 1 a 3 h na primeira vez (duas execuções do DAMICORE por canal); as seguintes reaproveitam os resultados.
 
 ### Google Colab
 
-Abra o notebook pelo GitHub no Colab e descomente as linhas da célula **"Ambiente e dados"**. Elas instalam o DAMICORE,
+Por enquanto, só `script-alzheimer.ipynb` tem a célula para o Colab. Abra-o pelo GitHub no Colab e descomente as linhas da célula **"Ambiente e dados"**. Elas instalam o DAMICORE,
 clonam este repositório e baixam os dados originais. A primeira execução completa leva cerca de 15 min
 (o DAMICORE leva ~47 s por canal); as seguintes reaproveitam os resultados já calculados.
 
@@ -57,9 +66,11 @@ Os dados não fazem parte deste repositório.
 ## Estrutura
 
 ```
-scripts/script-alzheimer.ipynb   notebook com todo o pipeline
-dataset/dataset/                 dados originais (não versionados)
-resultados/                      gerado pelo notebook (não versionado)
+scripts/damicore-dados-crus.ipynb   pipeline com os dados originais
+scripts/script-alzheimer.ipynb      pipeline com os dados harmonizados
+dataset/dataset/                    dados originais (não versionados)
+resultados_crus/                    gerado pelo notebook de dados crus (não versionado)
+resultados/                         gerado pelo notebook harmonizado (não versionado)
 ├── tabela_discretizada_<k>.csv  etapa 1: paciente × canal
 ├── filogramas/                  um filograma por canal
 ├── damicore/<parâmetros>/<canal>/   artefatos do DAMICORE por canal

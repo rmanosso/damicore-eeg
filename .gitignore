@@ -1,8 +1,9 @@
 # Dados originais (baixar do figshare; ver README)
 dataset/
 
-# Resultados gerados pelo notebook (reproduzíveis)
+# Resultados gerados pelos notebooks (reproduzíveis)
 resultados/
+resultados_crus/
 damicore-results/
 
 # Materiais de aula e artigos (direitos autorais; ver referências no README)
