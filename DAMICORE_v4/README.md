@@ -52,3 +52,8 @@ saida/
     ├── metricas_<configuração>.json
     └── decisoes.html                   árvore de decisões com o caminho tomado
 ```
+
+## Gerador do notebook
+
+`gerador/gerar_v4.py` gera o `damicore_v4.ipynb` (sem saídas). Para mudar o notebook, edite o gerador e rode, de dentro desta pasta,
+`.venv05\Scripts\python gerador/gerar_v4.py damicore_v4.ipynb`; depois execute o notebook no kernel **DAMICORE 0.5.0 (V4)**.

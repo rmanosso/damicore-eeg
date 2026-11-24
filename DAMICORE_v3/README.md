@@ -88,3 +88,8 @@ Cejnek, M.; Vysata, O.; Valis, M.; Bukovsky, I. *Novelty detection-based approac
 impairment diagnosis from EEG*. Med. Biol. Eng. Comput. 59, 2287–2296 (2021). [doi:10.1007/s11517-021-02427-6](https://doi.org/10.1007/s11517-021-02427-6)
 
 Dataset: [doi:10.6084/m9.figshare.5450293](https://doi.org/10.6084/m9.figshare.5450293), licença CC BY 4.0.
+
+## Gerador do notebook
+
+`gerador/gerar_v3.py` gera o `damicore_v3.ipynb` (sem saídas). Para mudar o notebook, edite o gerador e rode, de dentro desta pasta,
+`python gerador/gerar_v3.py damicore_v3.ipynb`; depois execute o notebook no kernel `eeg` (damicore 0.3.0).
