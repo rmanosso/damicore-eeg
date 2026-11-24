@@ -1,0 +1,413 @@
+# Registro das decisões do DAMICORE v4.
+#
+# Cada decisão tem a pergunta, as opções que existiam, a escolhida, quem decidiu, quando, o motivo
+# e as implicações de cada opção. O notebook lê este arquivo e gera saida/relatorios/decisoes.html,
+# com a árvore de possibilidades e o caminho tomado.
+#
+# Para acrescentar uma decisão, copie um bloco "- id:" dentro da fase certa (ou crie uma fase).
+# Campos:
+#   pergunta     a dúvida que precisou ser resolvida
+#   quando       versão ou data (ex.: V3, 2026-11-24)
+#   quem         usuário | orientador e usuário | sugestão do Claude, aceita | herdado do V3 | pendente
+#   escolha      o id da opção escolhida (vazio = decisão pendente)
+#   motivo       por que essa opção
+#   evidencia    números que sustentam a escolha; trechos entre chaves, como {n_fir}, são preenchidos
+#                pelo notebook com os valores da execução (a lista de chaves aparece no fim do relatório)
+#   opcoes       id, nome e implicacoes de cada caminho possível
+#
+# Escreva os textos depois de ">-" (bloco de texto); assim dois-pontos e aspas não quebram o arquivo.
+
+titulo: Árvore de decisões do DAMICORE v4
+fases:
+
+  - id: dados
+    titulo: Dados
+    decisoes:
+
+      - id: vies_aparelho
+        pergunta: Como tratar o viés do aparelho, se quase todos os controles vêm de um aparelho e todos os AD de outro?
+        quando: V3 → V4 (2026-11-24)
+        quem: orientador e usuário
+        escolha: separar
+        motivo: >-
+          No V3, com os sinais crus e todos os pacientes juntos, a discretização separou os pacientes pelo
+          formato do arquivo quase tanto quanto pelo estado. Harmonizar não resolveu a referência e cortou o delta.
+          Separar por equipamento elimina o viés dentro de cada universo.
+        evidencia: >-
+          V3 crus, K=2: NMI entre a discretização e o estado 0,598, com o formato 0,641. Os dois controles no
+          formato dos AD (normal1, normal2) caíram no grupo dos AD em 35 de 38 casos (canal × paciente).
+        opcoes:
+          - id: juntos_crus
+            nome: Todos juntos, sinais crus (V3)
+            implicacoes: >-
+              Usa todos os pacientes num só modelo, mas o DAMICORE encontra o aparelho antes do estado:
+              a classificação de 155/157 não distingue doença de equipamento.
+          - id: harmonizar
+            nome: Todos juntos, harmonizados (teste de controle do V3)
+            implicacoes: >-
+              Iguala taxa, filtros, escala e alfabeto, mas não a referência (os export parecem ter referência média).
+              A banda comum de 4,5–40 Hz corta o delta, que é parte da lentificação do EEG no Alzheimer.
+          - id: separar
+            nome: Separar por equipamento (V4)
+            implicacoes: >-
+              Dentro de cada universo não há viés de aparelho. Em troca, o contraste entre estados desaparece:
+              a pasta fir só tem controles e as pastas export quase só AD e MCI. Comparar estados passa a
+              depender de juntar os universos depois.
+
+      - id: n_pastas
+        pergunta: Em quantas pastas separar os arquivos export, que têm duas taxas de amostragem?
+        quando: 2026-11-24
+        quem: usuário
+        escolha: tres
+        motivo: >-
+          Os export de 128 Hz e de 256 Hz diferem na taxa, no filtro do aparelho e no delta. Com três pastas,
+          cada uma tem uma taxa só e nenhum sinal precisa ser reamostrado.
+        evidencia: >-
+          Fração da potência no delta (1–4 Hz, canal P3): fir 25%, export 128 Hz 16%, export 256 Hz 0,1%.
+          Pacientes por pasta nesta execução: fir {n_fir}, export128 {n_export128}, export256 {n_export256}.
+        opcoes:
+          - id: duas
+            nome: Duas pastas (fir e export), reamostrando o export para 128 Hz
+            implicacoes: >-
+              Pasta export maior, mas mistura arquivos com e sem delta e acrescenta uma etapa de processamento.
+              Reamostrar não devolve o delta aos arquivos de 256 Hz.
+          - id: tres
+            nome: Três pastas (fir, export128, export256)
+            implicacoes: >-
+              Nenhuma reamostragem e nenhum filtro. As pastas export ficam pequenas (dezenas de pacientes),
+              o que deixa as tabelas de probabilidade mais esparsas. A pasta export256 não tem delta de origem.
+
+      - id: processamento
+        pergunta: Que processamento o sinal recebe antes do DAMICORE?
+        quando: 2026-11-24
+        quem: usuário
+        escolha: crus
+        motivo: >-
+          Usar os dados originais, sem perder informação. Com uma taxa por pasta, não há o que igualar.
+        opcoes:
+          - id: crus
+            nome: Nenhum (valores originais dos arquivos)
+            implicacoes: >-
+              Preserva todo o sinal, inclusive o delta onde ele existe. A escala e o alfabeto continuam
+              diferentes entre as pastas, o que só importa ao juntar os universos.
+          - id: filtro
+            nome: Passa-banda comum (como no V3 harmonizado)
+            implicacoes: >-
+              Igualaria as faixas entre as pastas, mas cortaria o delta de fir e export128 sem necessidade,
+              já que as pastas não são comparadas nesta versão.
+
+      - id: pacientes
+        pergunta: Quais pacientes entram?
+        quando: 2026-11-24
+        quem: usuário
+        escolha: todos
+        motivo: >-
+          Não perder informação. Com um modelo por pasta e os estados só como rótulo, não há por que retirar MCI
+          nem os dois controles export.
+        evidencia: >-
+          Retirados por canal plano ou sem segmento de 19 canais: {retirados}.
+        opcoes:
+          - id: todos
+            nome: Todos (CONTROL, AD e MCI)
+            implicacoes: >-
+              Os MCI e os dois controles export entram nas pastas export. Eles aparecem nas figuras como rótulos,
+              o que mostra onde caem na estrutura aprendida.
+          - id: control_ad
+            nome: Só CONTROL e AD (como no V3)
+            implicacoes: >-
+              Repetiria o recorte do V3 e perderia os 7 MCI, sem nenhum ganho, já que não há classificação dentro da pasta.
+
+      - id: copia
+        pergunta: De onde cada versão lê os dados?
+        quando: 2026-11-24
+        quem: usuário
+        escolha: copia_organizada
+        motivo: >-
+          Processo independente: a pasta c:\DAMICORE\dataset guarda os brutos (como baixados do figshare), e cada
+          versão copia de lá, organizando os arquivos conforme o seu propósito.
+        opcoes:
+          - id: copia_organizada
+            nome: Copiar de dataset/ para dados/, já separado por equipamento
+            implicacoes: >-
+              Duplica cerca de 290 MB, mas a versão fica autocontida e a separação por aparelho fica visível no disco.
+          - id: leitura_direta
+            nome: Ler direto de dataset/, sem copiar
+            implicacoes: >-
+              Não duplica, mas a separação por pasta só existiria no código, e a versão depende de uma pasta externa.
+
+      - id: janela
+        pergunta: Qual o tamanho do objeto (janela de sinal de cada canal)?
+        quando: 2026-11-24
+        quem: sugestão do Claude, aceita
+        escolha: amostras_iguais
+        motivo: >-
+          O NCD usa o zlib, que só encontra repetições até 32 KB para trás. Com 3840 valores float32 (15 KB),
+          um par de objetos concatenado cabe nessa janela.
+        evidencia: >-
+          {n_amostras} amostras por objeto: 30 s nas pastas de 128 Hz e 15 s na de 256 Hz; {bytes_objeto} bytes por objeto.
+        opcoes:
+          - id: amostras_iguais
+            nome: 3840 amostras em todas as pastas
+            implicacoes: >-
+              Objetos do mesmo tamanho e NCD confiável. Na pasta de 256 Hz a janela cobre só 15 s.
+          - id: segundos_iguais
+            nome: 30 s em todas as pastas
+            implicacoes: >-
+              Mesma duração, mas na pasta de 256 Hz o objeto teria 30 KB e o par 60 KB, acima da janela do zlib.
+              O NCD veria só parte do par e exageraria a distância.
+          - id: registro_inteiro
+            nome: O registro inteiro
+            implicacoes: >-
+              Objetos de tamanhos diferentes (de 1 a 12 minutos) e muito acima da janela do zlib: o NCD
+              passaria a medir o tamanho do arquivo mais do que a forma do sinal.
+
+  - id: distancia
+    titulo: Biblioteca e medida de distância
+    decisoes:
+
+      - id: versao_biblioteca
+        pergunta: Qual versão do DAMICORE usar?
+        quando: 2026-11-24
+        quem: usuário (testar e registrar)
+        escolha: v050
+        motivo: >-
+          A 0.5.0 é a versão atual do repositório (github.com/delbem-research/damicore). Ela oferece quatro compressores
+          e recusa pares maiores que a janela do compressor. Com zlib, ela reproduz exatamente a 0.3.0, então atualizar não muda o V4.
+        evidencia: >-
+          Regressão (testes/teste_compressores.py): zlib na 0.5.0 contra as distâncias gravadas pela 0.3.0 no V4, canal Fz das três pastas.
+          Diferença máxima de NCD 0,0 e grupos automáticos idênticos. Versão nesta execução: {versao_damicore}.
+        opcoes:
+          - id: v030
+            nome: Manter a 0.3.0
+            implicacoes: >-
+              Só oferece o zlib e não confere a janela do compressor.
+          - id: v050
+            nome: Atualizar para a 0.5.0, num ambiente separado (.venv05)
+            implicacoes: >-
+              Permite testar os compressores. As execuções ganham identidade nova e são recalculadas uma vez.
+              O ambiente do V3 (EEG/.venv, 0.3.0) não é alterado.
+
+      - id: compressor
+        pergunta: Qual compressor o NCD usa em cada pasta?
+        quando: 2026-11-24
+        quem: teste com critérios definidos antes dos resultados (usuário pediu testar todas as opções)
+        escolha: por_pasta
+        motivo: >-
+          Critérios, nesta ordem: (1) validade, o compressor reconhece um objeto repetido; (2) identificação, com duas janelas
+          vizinhas de cada paciente, a outra janela é a vizinha mais próxima; (3) estabilidade do corte K=2 entre as janelas A e B;
+          (4) custo. Nenhum compressor vence em todas as pastas. bzip2 falha na validade em todas; ppmd falha na fir e é o melhor
+          nas export; na fir, entre os válidos, zlib supera lzma de pouco e custa um terço.
+        evidencia: >-
+          Média de 5 canais (Fz, C3, T4, Pz, O1); 143 pacientes com duas janelas sem sobreposição (21 com sinal curto ficaram fora).
+          Formato: NCD(x,x) / acerto do vizinho mais próximo / AUC intra × entre / ARI do corte K=2.
+          fir (acaso no vizinho 0,006): zlib 0,10 / 0,11 / 0,79 / 0,35; ppmd 0,76 / 0,09 / 0,82 / 0,33; lzma 0,02 / 0,08 / 0,75 / 0,33; bzip2 0,38 / 0,11 / 0,85 / 0,46.
+          export128 (acaso 0,020): ppmd 0,003 / 0,24 / 0,94 / 0,45; zlib 0,012 / 0,09 / 0,89 / 0,48; lzma 0,004 / 0,05 / 0,60 / 0,11; bzip2 0,23 / 0,17 / 0,91 / 0,68.
+          export256 (acaso 0,014): ppmd 0,003 / 0,18 / 0,86 / 0,70; zlib 0,012 / 0,12 / 0,77 / 0,45; lzma 0,004 / 0,07 / 0,56 / 0,02; bzip2 0,23 / 0,13 / 0,80 / 0,65.
+          Usado nesta execução: {comp_txt}.
+        opcoes:
+          - id: por_pasta
+            nome: zlib na fir, ppmd nas export
+            implicacoes: >-
+              O melhor compressor válido em cada universo. As distâncias de pastas diferentes deixam de estar na mesma escala,
+              o que não pesa agora (cada pasta tem os seus símbolos), mas precisa ser lembrado ao juntar os universos.
+          - id: zlib
+            nome: zlib em todas (como no V3 e no V4 original)
+            implicacoes: >-
+              Uma só medida para tudo e válida em todas as pastas. Nas export, o NCD entre pacientes fica em 1,000 (nada em comum),
+              a identificação cai à metade da do ppmd e as árvores se apoiam em diferenças mínimas.
+          - id: ppmd
+            nome: ppmd em todas (padrão da 0.5.0)
+            implicacoes: >-
+              Melhor nas export, mas na fir não reconhece um objeto repetido (NCD(x,x) de 0,68 a 0,95): a distância deixa de ser uma medida válida.
+          - id: lzma
+            nome: lzma em todas
+            implicacoes: >-
+              O mais válido (NCD(x,x) ≈ 0), mas o pior em identificação e estabilidade, sobretudo nas export (ARI perto de 0), e o mais lento.
+          - id: bzip2
+            nome: bzip2 em todas
+            implicacoes: >-
+              O corte mais estável, mas não reconhece um objeto repetido em nenhuma pasta (NCD(x,x) de 0,23 a 0,38). A estabilidade pode
+              vir da distribuição dos valores, que o bzip2 enxerga, e não da forma do sinal.
+
+  - id: discretizacao
+    titulo: Discretização
+    decisoes:
+
+      - id: metodo_discretizacao
+        pergunta: Como transformar o sinal de cada canal num símbolo por paciente?
+        quando: V2
+        quem: herdado do V3
+        escolha: arvore_canal
+        motivo: >-
+          É o princípio do DAMICORE: o sinal inteiro entra no NCD, sem extrair características.
+        opcoes:
+          - id: arvore_canal
+            nome: DAMICORE por canal (NCD → árvore NJ → corte FastGreedy em K grupos)
+            implicacoes: >-
+              O símbolo de um paciente num canal é o seu grupo na árvore daquele canal. O rótulo de um grupo
+              não tem o mesmo significado de um canal para outro.
+          - id: caracteristicas
+            nome: Características espectrais (ex. potência por banda) com limiar
+            implicacoes: >-
+              Símbolos interpretáveis, mas abandona a compressão como medida de semelhança, que é o objeto de estudo.
+
+      - id: k
+        pergunta: Em quantos grupos cortar cada árvore (o K da discretização)?
+        quando: 2026-11-24
+        quem: usuário
+        escolha: unico_por_pasta
+        motivo: >-
+          K=2 gera símbolos 0 e 1. Um valor único por pasta, que pode ser trocado, deixa a discretização
+          comparável entre canais e prepara o uso de alfabetos maiores.
+        evidencia: >-
+          K usado nesta execução: {k_txt}.
+        opcoes:
+          - id: unico_por_pasta
+            nome: Um K por pasta (padrão 2), com ajuste por canal no painel
+            implicacoes: >-
+              Simples e comparável. Com K maior, um grupo de g canais admite K^g padrões, e a tabela de
+              probabilidade fica esparsa rápido em pastas com poucos pacientes.
+          - id: automatico
+            nome: K automático de cada canal (modularidade)
+            implicacoes: >-
+              Sem escolha manual, mas os K variam muito entre canais (no V3, de 2 a 17), e as tabelas ficam esparsas.
+          - id: por_estado
+            nome: K escolhido olhando o estado (como no painel do V3)
+            implicacoes: >-
+              Ajusta a discretização pelo diagnóstico, o que deixa qualquer avaliação posterior otimista.
+
+      - id: corte_interativo
+        pergunta: Onde fica o corte interativo da árvore?
+        quando: 2026-11-24
+        quem: usuário
+        escolha: arvores_canais
+        motivo: >-
+          Repetir o painel do V3, agora com seletor de pasta.
+        opcoes:
+          - id: arvores_canais
+            nome: Nas árvores de cada canal (discretização)
+            implicacoes: >-
+              Mostra como cada K divide os pacientes de um canal e onde caem os rótulos de estado.
+          - id: tambem_grupos
+            nome: Também na árvore de canais do passo 3
+            implicacoes: >-
+              Permitiria forçar o número de grupos de canais, que hoje é automático.
+
+  - id: estrutura
+    titulo: Estrutura e modelo
+    decisoes:
+
+      - id: modelos_por_pasta
+        pergunta: Quantos modelos dentro de cada pasta?
+        quando: 2026-11-24
+        quem: usuário
+        escolha: um_por_pasta
+        motivo: >-
+          Separar por estado dentro das pastas export daria modelos com 2 a 4 pacientes, e a pasta fir só tem controles.
+        evidencia: >-
+          Estados por pasta: {estados_txt}.
+        opcoes:
+          - id: um_por_pasta
+            nome: Um modelo por pasta, com todos os pacientes, estados como rótulo
+            implicacoes: >-
+              Cada pasta descreve o seu universo: grupos de canais e tabelas de probabilidade. Não há classificação
+              dentro da pasta.
+          - id: por_estado
+            nome: Um modelo por estado dentro de cada pasta (como no V3)
+            implicacoes: >-
+              Modelos de 2 CONTROL, 3 ou 4 MCI, sem sentido estatístico.
+
+      - id: grupos_canais
+        pergunta: Como definir o número de grupos de canais?
+        quando: V2
+        quem: herdado do V3
+        escolha: automatico
+        motivo: >-
+          Deixar a estrutura (linkage learning) ser aprendida pelo DAMICORE, sem impor um número.
+        evidencia: >-
+          Grupos de canais nesta execução: {grupos_txt}.
+        opcoes:
+          - id: automatico
+            nome: Automático (FastGreedy pela modularidade)
+            implicacoes: >-
+              Pode gerar grupos grandes, que viram tabelas com muitos padrões possíveis.
+          - id: fixo
+            nome: Número fixo
+            implicacoes: >-
+              Controla o tamanho das tabelas, mas impõe uma estrutura que os dados talvez não tenham.
+
+      - id: compressor_estrutura
+        pergunta: Qual compressor usar no passo 3 (canais como objetos)?
+        quando: 2026-11-24
+        quem: sugestão do Claude, aceita
+        escolha: zlib
+        motivo: >-
+          O teste de compressores foi feito com os sinais (15 KB por objeto). No passo 3, o objeto é a sequência de símbolos de um canal,
+          com um byte por paciente (29 a 98 bytes). Esse caso não foi testado, então fica o compressor do V3.
+        opcoes:
+          - id: zlib
+            nome: zlib (como no V3)
+            implicacoes: >-
+              Mantém a estrutura comparável com o V3 e o V4 original. Com objetos tão pequenos, o NCD é instável com qualquer compressor.
+          - id: mesmo_da_pasta
+            nome: O mesmo compressor dos sinais da pasta
+            implicacoes: >-
+              Seria coerente com o passo 2, mas sem teste não há base para dizer que melhora.
+
+      - id: canais_identicos
+        pergunta: O que fazer com canais que têm exatamente a mesma sequência de símbolos?
+        quando: V3
+        quem: herdado do V3
+        escolha: representante
+        motivo: >-
+          Objetos idênticos dão NCD = 0 e um ramo de comprimento zero, que o DAMICORE não aceita.
+        opcoes:
+          - id: representante
+            nome: Um representante entra no DAMICORE; os repetidos voltam ao grupo dele
+            implicacoes: >-
+              Canais idênticos ficam sempre juntos, o que é coerente: são indistinguíveis nos dados.
+          - id: ruido
+            nome: Acrescentar ruído para desempatar
+            implicacoes: >-
+              Altera os dados e torna o resultado dependente da semente.
+
+      - id: fim_v4
+        pergunta: Até onde vai o V4?
+        quando: 2026-11-24
+        quem: usuário
+        escolha: tabelas
+        motivo: >-
+          Sem contraste de estado dentro das pastas, a classificação não faz sentido. A versão termina nas tabelas
+          de probabilidade de cada universo.
+        evidencia: >-
+          Tabelas de probabilidade nesta execução: {tabelas_txt}.
+        opcoes:
+          - id: tabelas
+            nome: Até as tabelas de probabilidade
+            implicacoes: >-
+              Entrega a estrutura e os parâmetros de cada universo, prontos para a etapa de juntar.
+          - id: classificacao
+            nome: Até sintéticos e classificação (como no V3)
+            implicacoes: >-
+              Não é possível dentro de uma pasta com um só estado.
+
+  - id: proximos
+    titulo: Próximas etapas
+    decisoes:
+
+      - id: juntar
+        pergunta: Como juntar os universos para comparar estados?
+        quando: depois do V4
+        quem: pendente
+        escolha:
+        motivo: >-
+          Estratégia do usuário, a definir. Os dois universos podem não se conversar.
+        opcoes:
+          - id: reamostrar_juntar
+            nome: Reamostrar e discretizar tudo junto
+            implicacoes: >-
+              Volta ao problema do V3 se o viés de aparelho não for tratado.
+          - id: comparar_estruturas
+            nome: Comparar as estruturas aprendidas (grupos de canais, tabelas)
+            implicacoes: >-
+              Não exige símbolos comuns; compara a forma dos modelos de cada universo.

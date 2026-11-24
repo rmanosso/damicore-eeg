@@ -1,0 +1,5 @@
+# Dados copiados de ../dataset e resultados gerados pelo notebook
+dados/
+saida/
+.ipynb_checkpoints/
+.venv05/
